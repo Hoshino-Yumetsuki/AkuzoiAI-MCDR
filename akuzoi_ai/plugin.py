@@ -112,18 +112,12 @@ def _register_commands(server: PluginServerInterface) -> None:
             lambda src: src.has_permission(min_perm),
             lambda: f"Permission level {min_perm} required to use !!ai",
         )
-        .then(
-            GreedyText("message")
-            .runs(_cmd_chat)
-        )
+        .then(GreedyText("message").runs(_cmd_chat))
         .then(
             Literal("preset")
             .requires(lambda src: src.has_permission(PermissionLevel.ADMIN))
             .then(Literal("list").runs(_cmd_preset_list))
-            .then(
-                Literal("switch")
-                .then(Text("name").runs(_cmd_preset_switch))
-            )
+            .then(Literal("switch").then(Text("name").runs(_cmd_preset_switch)))
         )
         .then(
             Literal("clear")
@@ -163,6 +157,7 @@ def _trigger_ai(source: CommandSource, message: str, triggered_by: str = "") -> 
     source.reply("§7[AkuzoiAI] §o思考中...")
 
     from mcdreforged.api.all import ServerInterface
+
     mcdr_context = MCDRContext(
         server=ServerInterface.si(),
         permission_level=permission_level,
@@ -207,7 +202,11 @@ def _trigger_ai(source: CommandSource, message: str, triggered_by: str = "") -> 
         source.reply(f"{prefix} {response}")
 
         if config.debug.log_to_console and logger:
-            trigger_info = f" (triggered by keyword, player={triggered_by})" if triggered_by else ""
+            trigger_info = (
+                f" (triggered by keyword, player={triggered_by})"
+                if triggered_by
+                else ""
+            )
             logger.info(f"[AI reply{trigger_info}] {response}")
 
     ServerInterface.si().schedule_task(_run_in_background)
@@ -238,8 +237,7 @@ def _cmd_preset_switch(source: CommandSource, ctx: dict) -> None:
     else:
         available = ", ".join(_config.presets.keys())
         source.reply(
-            f"§c[AkuzoiAI] Preset '§f{name}§c' not found. "
-            f"Available: {available}"
+            f"§c[AkuzoiAI] Preset '§f{name}§c' not found. Available: {available}"
         )
 
 
@@ -255,6 +253,7 @@ def _cmd_reload(source: CommandSource, ctx: dict) -> None:
     assert _ai_service is not None
 
     from mcdreforged.api.all import ServerInterface
+
     psi = ServerInterface.psi()
     data_folder = psi.get_data_folder()
 

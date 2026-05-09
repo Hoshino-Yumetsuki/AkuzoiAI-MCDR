@@ -83,6 +83,7 @@ _DEFAULT_BLACKLIST: list[str] = [
 @dataclass
 class CommandFilterConfig:
     """Command filter with blacklist or whitelist mode."""
+
     mode: str = "blacklist"
     list: list[str] = field(default_factory=list)
 
@@ -135,6 +136,7 @@ class ConversationConfig:
 @dataclass
 class TriggerConfig:
     """Keyword trigger for automatic AI invocation."""
+
     enabled: bool = True
     keywords: list[str] = field(default_factory=lambda: ["AI", "ai"])
     case_sensitive: bool = False
@@ -185,6 +187,47 @@ class DebugConfig:
 
 
 @dataclass
+class McpServerConfig:
+    """Configuration for a single MCP server.
+
+    Transport is inferred from fields present:
+    - has ``command`` → stdio
+    - has ``url``     → streamable HTTP (or SSE if url ends with /sse)
+    """
+
+    # stdio fields
+    command: str = ""
+    args: list[str] = field(default_factory=list)
+    env: dict[str, str] = field(default_factory=dict)
+    # http / sse fields
+    url: str = ""
+    headers: dict[str, str] = field(default_factory=dict)
+    # tool filtering (plugin-specific extension)
+    tool_names: list[str] = field(default_factory=list)  # empty = all tools
+
+    @classmethod
+    def from_dict(cls, d: dict) -> "McpServerConfig":
+        return cls(
+            command=d.get("command", ""),
+            args=list(d.get("args", [])),
+            env=dict(d.get("env", {})),
+            url=d.get("url", ""),
+            headers=dict(d.get("headers", {})),
+            tool_names=list(d.get("tool_names", [])),
+        )
+
+    def to_dict(self) -> dict:
+        return {
+            "command": self.command,
+            "args": self.args,
+            "env": self.env,
+            "url": self.url,
+            "headers": self.headers,
+            "tool_names": self.tool_names,
+        }
+
+
+@dataclass
 class PluginConfig:
     active_preset: str = "default"
     presets: dict[str, PresetConfig] = field(default_factory=dict)
@@ -194,6 +237,7 @@ class PluginConfig:
     conversation: ConversationConfig = field(default_factory=ConversationConfig)
     trigger: TriggerConfig = field(default_factory=TriggerConfig)
     debug: DebugConfig = field(default_factory=DebugConfig)
+    mcp_servers: dict[str, McpServerConfig] = field(default_factory=dict)
     _data_folder: str = field(default="", repr=False, compare=False)
 
     def get_active_preset(self) -> PresetConfig:
@@ -234,10 +278,16 @@ class PluginConfig:
             presets=presets,
             command_filter=CommandFilterConfig.from_dict(d.get("command_filter", {})),
             min_permission_to_use=int(d.get("min_permission_to_use", 1)),
-            min_permission_for_server_command=int(d.get("min_permission_for_server_command", 4)),
+            min_permission_for_server_command=int(
+                d.get("min_permission_for_server_command", 4)
+            ),
             conversation=ConversationConfig.from_dict(d.get("conversation", {})),
             trigger=TriggerConfig.from_dict(d.get("trigger", {})),
             debug=DebugConfig.from_dict(d.get("debug", {})),
+            mcp_servers={
+                k: McpServerConfig.from_dict(v)
+                for k, v in d.get("mcpServers", {}).items()
+            },
         )
 
     def to_dict(self) -> dict:
@@ -250,6 +300,7 @@ class PluginConfig:
             "conversation": self.conversation.to_dict(),
             "trigger": self.trigger.to_dict(),
             "debug": self.debug.to_dict(),
+            "mcpServers": {k: v.to_dict() for k, v in self.mcp_servers.items()},
         }
 
     # ------------------------------------------------------------------
@@ -257,7 +308,9 @@ class PluginConfig:
     # ------------------------------------------------------------------
 
     @classmethod
-    def load(cls, data_folder: str, server: "Optional[PluginServerInterface]" = None) -> "PluginConfig":
+    def load(
+        cls, data_folder: str, server: "Optional[PluginServerInterface]" = None
+    ) -> "PluginConfig":
         """Load config from data_folder/config.json, creating defaults if needed."""
         config_path = os.path.join(data_folder, "config.json")
         old_yaml_path = os.path.join(data_folder, "config.yml")
@@ -265,6 +318,7 @@ class PluginConfig:
         if not os.path.isfile(config_path) and os.path.isfile(old_yaml_path):
             try:
                 import yaml  # type: ignore[import-untyped]
+
                 with open(old_yaml_path, "r", encoding="utf-8") as f:
                     raw = yaml.safe_load(f) or {}
                 cfg = cls.from_dict(raw)

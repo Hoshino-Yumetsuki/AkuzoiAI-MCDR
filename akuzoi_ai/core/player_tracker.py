@@ -3,6 +3,7 @@ from __future__ import annotations
 import threading
 from typing import FrozenSet, Set
 
+
 # Player tracker for online player
 class PlayerTracker:
     def __init__(self) -> None:

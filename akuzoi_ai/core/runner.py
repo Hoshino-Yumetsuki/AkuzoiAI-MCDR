@@ -6,6 +6,7 @@ from typing import Any, Coroutine, TypeVar
 
 T = TypeVar("T")
 
+
 # Async agent runner with dedicated background event loop.
 class AsyncAgentRunner:
     def __init__(self) -> None:

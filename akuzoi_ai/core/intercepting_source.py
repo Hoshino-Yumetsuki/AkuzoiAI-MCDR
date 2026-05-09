@@ -5,6 +5,7 @@ import threading
 from mcdreforged.api.all import CommandSource, ServerInterface
 from mcdreforged.utils.types.message import MessageText
 
+
 # Custom MCDR CommandSource that captures command output.
 class InterceptingCommandSource(CommandSource):
     # Synthetic CommandSource that captures command output.

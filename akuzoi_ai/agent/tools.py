@@ -7,6 +7,7 @@ from haystack.tools import tool
 @dataclass
 class MCDRContext:
     """Runtime context injected into tool calls via agent state."""
+
     server: Any
     permission_level: int
     command_filter: Any
@@ -94,7 +95,9 @@ def get_server_status(ctx: MCDRContext) -> str:
 
 @tool(inputs_from_state={"mcdr_context": "ctx"})
 def execute_server_command(
-    command: Annotated[str, "The Minecraft server command to execute, e.g. 'say Hello' or 'kick Steve'"],
+    command: Annotated[
+        str, "The Minecraft server command to execute, e.g. 'say Hello' or 'kick Steve'"
+    ],
     ctx: MCDRContext,
 ) -> str:
     """Execute a raw Minecraft server command by writing to server stdin.

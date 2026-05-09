@@ -8,6 +8,7 @@ Build script: packs the plugin into a .mcdr file under dist/.
 Usage:
     uv run build.py
 """
+
 import subprocess
 import sys
 from pathlib import Path
@@ -19,9 +20,14 @@ DIST = ROOT / "dist"
 def main() -> None:
     DIST.mkdir(exist_ok=True)
     cmd = [
-        sys.executable, "-m", "mcdreforged", "pack",
-        "-i", str(ROOT),
-        "-o", str(DIST),
+        sys.executable,
+        "-m",
+        "mcdreforged",
+        "pack",
+        "-i",
+        str(ROOT),
+        "-o",
+        str(DIST),
     ]
     print(f"Running: {' '.join(cmd)}")
     result = subprocess.run(cmd, cwd=ROOT)

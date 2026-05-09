@@ -32,8 +32,12 @@ def _patch_tool_schemas(tools: list[Any]) -> list[Any]:
                 description=t.description,
                 parameters=params,
                 function=t.function,
-                inputs_from_state=t.inputs_from_state if hasattr(t, "inputs_from_state") else None,
-                outputs_to_state=t.outputs_to_state if hasattr(t, "outputs_to_state") else None,
+                inputs_from_state=t.inputs_from_state
+                if hasattr(t, "inputs_from_state")
+                else None,
+                outputs_to_state=t.outputs_to_state
+                if hasattr(t, "outputs_to_state")
+                else None,
             )
         patched.append(t)
     return patched
@@ -46,11 +50,13 @@ class AIChatService:
         self._config = plugin_config
         self._logger = logger
         self._agents: dict[str, _AgentInstance] = {}
+        self._mcp_toolsets: list[Any] = self._build_mcp_toolsets()
 
     def invalidate(self, new_config: PluginConfig) -> None:
-        """Rebuild all agents on next use."""
+        """Rebuild all agents and MCP toolsets on next use."""
         self._config = new_config
         self._agents.clear()
+        self._mcp_toolsets = self._build_mcp_toolsets()
 
     async def invoke(
         self,
@@ -100,6 +106,7 @@ class AIChatService:
         api = preset.api
         system_prompt = self._config.get_system_prompt(preset)
         patched_tools = _patch_tool_schemas(ALL_TOOLS)
+        all_tools: list[Any] = patched_tools + self._mcp_toolsets
 
         generator = OpenAIChatGenerator(  # type: ignore[call-arg]
             api_key=Secret.from_token(api.api_key),
@@ -115,7 +122,7 @@ class AIChatService:
 
         agent = Agent(
             chat_generator=generator,
-            tools=patched_tools,
+            tools=all_tools,
             system_prompt=system_prompt,
             state_schema={"mcdr_context": {"type": object}},
             max_agent_steps=10,
@@ -124,9 +131,74 @@ class AIChatService:
 
         self._logger.info(
             f"Built Haystack Agent for preset '{preset.name}' "
-            f"(model={api.model}, base_url={api.base_url})"
+            f"(model={api.model}, base_url={api.base_url}, "
+            f"mcp_toolsets={len(self._mcp_toolsets)})"
         )
         return agent
+
+    def _build_mcp_toolsets(self) -> list[Any]:
+        """Build and warm up MCPToolset instances from config.
+
+        Transport is inferred from config fields:
+        - ``command`` present → stdio
+        - ``url`` present     → streamable HTTP (default) or SSE (if url ends with /sse)
+        """
+        from haystack_integrations.tools.mcp import (
+            MCPToolset,
+            SSEServerInfo,
+            StdioServerInfo,
+            StreamableHttpServerInfo,
+        )
+
+        toolsets: list[Any] = []
+        for name, cfg in self._config.mcp_servers.items():
+            try:
+                if cfg.command:
+                    # stdio transport
+                    server_info = StdioServerInfo(
+                        command=cfg.command,
+                        args=cfg.args or [],
+                        env=dict(cfg.env) if cfg.env else None,
+                    )
+                    transport_label = "stdio"
+                elif cfg.url:
+                    # HTTP transport — SSE if url ends with /sse, otherwise streamable HTTP
+                    headers = dict(cfg.headers) if cfg.headers else None
+                    if cfg.url.rstrip("/").endswith("/sse"):
+                        server_info = SSEServerInfo(
+                            url=cfg.url,
+                            headers=headers,
+                        )
+                        transport_label = "sse"
+                    else:
+                        server_info = StreamableHttpServerInfo(
+                            url=cfg.url,
+                            headers=headers,
+                        )
+                        transport_label = "http"
+                else:
+                    self._logger.warning(
+                        f"[mcp] Server '{name}' has neither 'command' nor 'url' — skipping"
+                    )
+                    continue
+
+                toolset = MCPToolset(
+                    server_info=server_info,
+                    tool_names=cfg.tool_names if cfg.tool_names else None,
+                )
+                toolset.warm_up()
+                self._logger.info(
+                    f"[mcp] Connected to server '{name}' "
+                    f"(transport={transport_label}, "
+                    f"tools={'all' if not cfg.tool_names else cfg.tool_names})"
+                )
+                toolsets.append(toolset)
+            except Exception as exc:
+                self._logger.error(
+                    f"[mcp] Failed to connect to server '{name}': {exc}",
+                    exc_info=True,
+                )
+        return toolsets
 
     def _build_help_text(self, context: MCDRContext) -> str:
         """Execute !!help and return available MCDR commands for system prompt injection."""
@@ -146,8 +218,7 @@ class AIChatService:
 
         return (
             "The following MCDR plugin commands are currently available "
-            "(from !!help). Use execute_mcdr_command to call them:\n\n"
-            + clean
+            "(from !!help). Use execute_mcdr_command to call them:\n\n" + clean
         )
 
     def _log_tool_calls(self, messages: list[Any], context: MCDRContext) -> None:
