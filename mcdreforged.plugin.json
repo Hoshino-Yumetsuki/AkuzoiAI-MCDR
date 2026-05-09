@@ -1,0 +1,13 @@
+{
+  "id": "akuzoi_ai_mcdr",
+  "version": "0.1.0",
+  "name": "AkuzoiAI-MCDR",
+  "description": "AI assistant for MCDR",
+  "author": "Q78KG",
+  "link": "https://github.com/Hoshino-Yumetsuki/AkuzoiAI-MCDR",
+  "entrypoint": "akuzoi_ai",
+  "archive_name": "AkuzoiAI-v{version}",
+  "dependencies": {
+    "mcdreforged": ">=2.14.0"
+  }
+}
