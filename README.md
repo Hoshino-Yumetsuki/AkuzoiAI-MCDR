@@ -11,5 +11,21 @@ AI assistant for MCDR
 !!ai <message>    — 主入口（权限：min_permission_to_use）
 ```
 
+# MCP
+```
+"mcpServers": {
+  "playwright": {
+    "command": "npx",
+    "args": ["@playwright/mcp@latest"]
+  },
+  "context7": {
+    "url": "https://mcp.context7.com/mcp",
+    "headers": {
+      "Authorization": "Bearer YOUR_API_KEY"
+    }
+  }
+}
+```
+
 # Acknowledgements
 - [Yunmoan/AkuzoiAI-bukkit](https://github.com/Yunmoan/AkuzoiAI-bukkit)
